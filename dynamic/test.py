@@ -13,7 +13,7 @@ max_t = None
 for i in lines:
     if i[0].startswith("%"):
         continue
-    G.add_edge(i[0], i[1], prob = 0.9)
+    G.add_edge(int(i[0]), int(i[1]), prob = 0.9)
     t = int(int(i[2]) / day)
     if min_t == None or t < min_t:
         min_t = t
@@ -26,7 +26,7 @@ for _ in range(max_t - min_t + 1):
 for i in lines:
     if i[0].startswith("%"):
         continue
-    idx = edge_idx[(i[0], i[1])]
+    idx = edge_idx[(int(i[0]), int(i[1]))]
     t = int(int(i[2]) / day) - min_t
     temporal[t].append(idx)
 sorted_temporal = [sorted(i) for i in temporal]
