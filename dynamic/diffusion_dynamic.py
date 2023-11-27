@@ -2,6 +2,26 @@ import numpy as np
 import networkx as nx
 from tqdm.autonotebook import tqdm
 
+
+def diffuse_dynamic0(graph, edge_probs, edge_count_map_list, reverse_edge_idx, act_nodes, t0, duration):
+    new_act_nodes = set(act_nodes)
+    live_edges = np.zeros([1, len(edge_probs)], dtype = np.int8)
+    t1 = min(len(edge_count_map_list), t0 + duration)
+    for t in range(t0, t1):
+        edge_count_map = edge_count_map_list[t]
+        inc_nodes = set()
+        for idx in edge_count_map.keys():
+            edge = reverse_edge_idx[idx]
+            count = edge_count_map[idx]
+            if edge[0] not in new_act_nodes:
+                continue
+            r = np.random.random()
+            if r > edge_probs[edge] ** count:
+                live_edges[0][idx] = 1
+                inc_nodes.add(edge[1])
+        new_act_nodes.update(inc_nodes)
+    return len(new_act_nodes)
+
 class IndependentCascade(object):
     """
     Args:
@@ -15,9 +35,20 @@ class IndependentCascade(object):
         self.graph = graph
         self.sampled_graph = graph.copy()
         self.edge_idx = {(u, v): i for i, (u, v) in enumerate(self.graph.edges())}
+        self.edge_probs = {(u, v): d['prob'] for u, v, d in graph.edges().data()}
         self.temporal = temporal
         self.reverse_edge_idx = {i: e for e, i in self.edge_idx.items()}
         self.prob_matrix = [self.graph.edges[self.reverse_edge_idx[i][0], self.reverse_edge_idx[i][1]]['prob'] for i in sorted(self.reverse_edge_idx.keys())]
+        self.edge_count_map_list = []
+        for t in range(len(temporal)):
+            edge_idx_list = temporal[t]
+            edge_count_map = {}
+            for idx in edge_idx_list:
+                if idx in edge_count_map:
+                    edge_count_map[idx] += 1
+                else:
+                    edge_count_map[idx] = 1
+            self.edge_count_map_list.append(edge_count_map)
     
     def sample_live_graph_mc(self, act_nodes, mc):
         edge_probs = {(u, v): d['prob'] for u, v, d in self.graph.edges().data()}
@@ -28,30 +59,7 @@ class IndependentCascade(object):
             self.sampled_graphs.append(live_edges)
     
     def diffuse_dynamic(self, act_nodes, t0, duration):
-        edge_probs = {(u, v): d['prob'] for u, v, d in self.graph.edges().data()}
-        new_act_nodes = set(act_nodes)
-        live_edges = np.zeros([1, len(edge_probs)], dtype = np.int8)
-        t1 = min(len(self.temporal), t0 + duration)
-        for t in range(t0, t1):
-            edge_idx_list = self.temporal[t]
-            edge_count_map = {}
-            for idx in edge_idx_list:
-                if idx in edge_count_map:
-                    edge_count_map[idx] += 1
-                else:
-                    edge_count_map[idx] = 1
-            inc_nodes = set()
-            for idx in edge_count_map.keys():
-                edge = self.reverse_edge_idx[idx]
-                count = edge_count_map[idx]
-                if edge[0] not in new_act_nodes:
-                    continue
-                r = np.random.random()
-                if r > edge_probs[edge] ** count:
-                    live_edges[0][idx] = 1
-                    inc_nodes.add(edge[1])
-            new_act_nodes.update(inc_nodes)
-        return len(new_act_nodes)
+        return diffuse_dynamic0(self.graph, self.edge_probs, self.edge_count_map_list, self.reverse_edge_idx, act_nodes, t0, duration)
         
     def sample_live_graph(self, mcount):
         removed_edges_idx = np.where(self.sampled_graphs[mcount] == 0)[1].tolist()
